@@ -8,7 +8,7 @@ int load_config(owrt_config_t *config) {
     char result[1024];   // 进一步增加缓冲区大小
     
     // 设置默认值 - 写死配置，不依赖UCI
-    strcpy(config->server_url, "http://azurebt.mswifi.online");  
+    strcpy(config->server_url, "url");  
     config->heartbeat_interval = 60;  
     config->max_retries = 3;
     config->use_encryption = 1;  // 写死启用加密
