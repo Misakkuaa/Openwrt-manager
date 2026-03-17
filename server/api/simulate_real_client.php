@@ -5,8 +5,8 @@ require_once '../config/config.php';
 echo "=== SIMULATING REAL CLIENT BEHAVIOR ===\n\n";
 
 // 使用客户端的真实配置
-$deviceId = 'dcd0b342';
-$serverUrl = 'http://azurebt.mswifi.online';
+$deviceId = 'ID';
+$serverUrl = 'url';
 
 // 模拟客户端使用种子生成密钥的方式（而不是从文件读取）
 $aesKeySeed = 'owrt_server_aes_key_seed_2025';
