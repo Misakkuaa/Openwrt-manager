@@ -59,7 +59,7 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 	
 	# 初始化UCI配置
 	uci set owrt_client.main=section 2>/dev/null
-	uci set owrt_client.main.server_url="http://azurebt.mswifi.online"
+	uci set owrt_client.main.server_url="url"
 	uci set owrt_client.main.use_encryption="1"
 	uci set owrt_client.main.heartbeat_interval="60"
 	uci set owrt_client.main.max_retries="3"
