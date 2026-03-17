@@ -5,9 +5,9 @@
 
 // 数据库配置
 define('DB_HOST', 'localhost');
-define('DB_USER', 'misakku');
-define('DB_PASS', 'misakkupassword');
-define('DB_NAME', 'management');
+define('DB_USER', 'xxxxxx');
+define('DB_PASS', 'xxxxxxx');
+define('DB_NAME', 'xxxxxx');
 
 // 安全配置
 define('SECRET_KEY_FILE', __DIR__ . '/secret.key');
