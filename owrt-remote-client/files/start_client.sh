@@ -25,7 +25,7 @@ if ps | grep -v grep | grep owrt_client >/dev/null; then
     echo "✓ Sending heartbeats to server every 60 seconds"
     
     # Quick connectivity test
-    if curl --connect-timeout 5 --max-time 5 -s "http://azurebt.mswifi.online/api/test.php" >/dev/null 2>&1; then
+    if curl --connect-timeout 5 --max-time 5 -s "Url" >/dev/null 2>&1; then
         echo "✓ Server connectivity confirmed"
     else
         echo "⚠ Server not reachable (client will retry automatically)"
