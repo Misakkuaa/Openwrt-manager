@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备列表调试</title>
+    <link rel="stylesheet" href="/css/device-list.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .debug-panel {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .debug-result {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>设备列表功能调试</h1>
+    
+    <!-- 调试面板 -->
+    <div class="debug-panel">
+        <h2>API调试</h2>
+        <button class="test-button" onclick="testDevicesAPI()">测试设备API</button>
+        <button class="test-button" onclick="testDeviceDetailAPI()">测试设备详情API</button>
+        <button class="test-button" onclick="testJavaScriptRendering()">测试JavaScript渲染</button>
+        <div id="debug-output" class="debug-result">点击按钮开始调试...</div>
+    </div>
+    
+    <!-- 设备列表测试 -->
+    <div class="debug-panel">
+        <h2>设备列表渲染测试</h2>
+        <button class="test-button" onclick="loadAndRenderDevices()">加载并渲染设备</button>
+        <div id="device-list" style="border: 1px solid #ddd; min-height: 200px; padding: 15px;">
+            设备列表将显示在这里...
+        </div>
+    </div>
+    
+    <script>
+        let debugOutput = document.getElementById('debug-output');
+        
+        function addDebugInfo(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugOutput.textContent += `[${timestamp}] ${message}\n`;
+            debugOutput.scrollTop = debugOutput.scrollHeight;
+        }
+        
+        /**
+         * 测试设备API
+         */
+        async function testDevicesAPI() {
+            addDebugInfo('开始测试设备API...');
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                addDebugInfo(`API响应状态: ${response.status}`);
+                
+                const data = await response.json();
+                addDebugInfo(`API响应数据: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.status === 'success') {
+                    addDebugInfo(`设备数量: ${data.devices.length}`);
+                    addDebugInfo(`统计信息: ${JSON.stringify(data.stats, null, 2)}`);
+                    
+                    if (data.devices.length > 0) {
+                        addDebugInfo(`第一个设备示例: ${JSON.stringify(data.devices[0], null, 2)}`);
+                    }
+                } else {
+                    addDebugInfo(`API错误: ${data.message}`);
+                }
+                
+            } catch (error) {
+                addDebugInfo(`请求失败: ${error.message}`);
+            }
+        }
+        
+        /**
+         * 测试设备详情API
+         */
+        async function testDeviceDetailAPI() {
+            addDebugInfo('开始测试设备详情API...');
+            
+            try {
+                // 首先获取一个设备ID
+                const devicesResponse = await fetch('/api/devices.php');
+                const devicesData = await devicesResponse.json();
+                
+                if (devicesData.status !== 'success' || devicesData.devices.length === 0) {
+                    addDebugInfo('没有找到设备进行测试');
+                    return;
+                }
+                
+                const testDeviceId = devicesData.devices[0].device_id;
+                addDebugInfo(`测试设备ID: ${testDeviceId}`);
+                
+                const detailResponse = await fetch(`/api/device_detail.php?device_id=${encodeURIComponent(testDeviceId)}`);
+                addDebugInfo(`设备详情API响应状态: ${detailResponse.status}`);
+                
+                const detailData = await detailResponse.json();
+                addDebugInfo(`设备详情API响应: ${JSON.stringify(detailData, null, 2)}`);
+                
+                if (detailData.status === 'success' && detailData.device.uptime_info) {
+                    addDebugInfo(`在线时长信息: ${JSON.stringify(detailData.device.uptime_info, null, 2)}`);
+                }
+                
+            } catch (error) {
+                addDebugInfo(`设备详情API测试失败: ${error.message}`);
+            }
+        }
+        
+        /**
+         * 测试JavaScript渲染
+         */
+        async function testJavaScriptRendering() {
+            addDebugInfo('开始测试JavaScript渲染功能...');
+            
+            // 检查设备刷新管理器是否加载
+            try {
+                const script = document.createElement('script');
+                script.src = '/js/device-refresh-manager.js';
+                script.onload = function() {
+                    addDebugInfo('device-refresh-manager.js 加载成功');
+                    
+                    // 检查类是否可用
+                    if (typeof DeviceRefreshManager !== 'undefined') {
+                        addDebugInfo('DeviceRefreshManager 类可用');
+                    } else {
+                        addDebugInfo('DeviceRefreshManager 类不可用');
+                    }
+                    
+                    if (typeof DeviceListRenderer !== 'undefined') {
+                        addDebugInfo('DeviceListRenderer 类可用');
+                    } else {
+                        addDebugInfo('DeviceListRenderer 类不可用');
+                    }
+                };
+                script.onerror = function() {
+                    addDebugInfo('device-refresh-manager.js 加载失败');
+                };
+                
+                document.head.appendChild(script);
+                
+            } catch (error) {
+                addDebugInfo(`JavaScript测试失败: ${error.message}`);
+            }
+        }
+        
+        /**
+         * 加载并渲染设备
+         */
+        async function loadAndRenderDevices() {
+            addDebugInfo('开始加载并渲染设备列表...');
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status !== 'success') {
+                    throw new Error(data.message || '获取设备列表失败');
+                }
+                
+                addDebugInfo(`获取到 ${data.devices.length} 个设备`);
+                
+                // 手动渲染设备列表
+                const deviceListElement = document.getElementById('device-list');
+                let html = '';
+                
+                data.devices.forEach(device => {
+                    const isOnline = isDeviceOnline(device);
+                    const statusIcon = isOnline ? '🟢' : '🔴';
+                    const statusText = isOnline ? '在线' : '离线';
+                    
+                    // 计算简单的在线时长
+                    const firstSeenTime = new Date(device.first_seen).getTime();
+                    const lastSeenTime = new Date(device.last_seen).getTime();
+                    const now = Date.now();
+                    
+                    let uptimeDisplay = '';
+                    if (isOnline) {
+                        const totalSeconds = Math.floor((now - firstSeenTime) / 1000);
+                        uptimeDisplay = formatSimpleDuration(totalSeconds);
+                    } else {
+                        const offlineSeconds = Math.floor((now - lastSeenTime) / 1000);
+                        uptimeDisplay = `离线 ${formatSimpleDuration(offlineSeconds)}`;
+                    }
+                    
+                    html += `
+                        <div class="device-card ${isOnline ? 'online' : 'offline'}" style="margin: 10px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+                            <div class="device-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span class="device-status">${statusIcon} ${statusText}</span>
+                                <span class="device-id" style="font-weight: bold;">${device.device_id}</span>
+                            </div>
+                            <div class="device-info">
+                                <div class="device-time">
+                                    <small>首次连接: ${new Date(device.first_seen).toLocaleString('zh-CN')}</small><br>
+                                    <small>最近活动: ${new Date(device.last_seen).toLocaleString('zh-CN')}</small><br>
+                                    <small><strong>⏱️ ${uptimeDisplay}</strong></small>
+                                </div>
+                                <div class="device-actions" style="margin-top: 10px;">
+                                    <button onclick="openDeviceDetail('${device.device_id}')" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 12px; cursor: pointer;">
+                                        查看详情
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                deviceListElement.innerHTML = html;
+                addDebugInfo('设备列表渲染完成');
+                
+            } catch (error) {
+                addDebugInfo(`渲染失败: ${error.message}`);
+            }
+        }
+        
+        /**
+         * 判断设备是否在线
+         */
+        function isDeviceOnline(device) {
+            if (device.is_online !== undefined) {
+                return device.is_online === 1;
+            }
+            
+            const lastSeen = new Date(device.last_seen).getTime();
+            const now = Date.now();
+            const timeDiff = (now - lastSeen) / 1000;
+            
+            return timeDiff <= 120;
+        }
+        
+        /**
+         * 格式化简单时长显示
+         */
+        function formatSimpleDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds}秒`;
+            } else if (seconds < 3600) {
+                return `${Math.floor(seconds / 60)}分钟`;
+            } else if (seconds < 86400) {
+                return `${Math.floor(seconds / 3600)}小时`;
+            } else {
+                return `${Math.floor(seconds / 86400)}天`;
+            }
+        }
+        
+        /**
+         * 打开设备详情页面
+         */
+        function openDeviceDetail(deviceId) {
+            window.open(`/device_detail.html?device_id=${encodeURIComponent(deviceId)}`, '_blank');
+        }
+        
+        // 页面加载完成后自动测试
+        document.addEventListener('DOMContentLoaded', function() {
+            addDebugInfo('调试页面加载完成');
+            // 自动测试设备API
+            setTimeout(testDevicesAPI, 1000);
+        });
+    </script>
+</body>
+</html>

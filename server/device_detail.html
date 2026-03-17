@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备详情 - OpenWrt管理系统</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .device-header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .device-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .device-title h1 {
+            margin: 0;
+            color: #333;
+            font-size: 28px;
+        }
+        
+        .device-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-online {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-offline {
+            background: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .device-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .info-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .info-card h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 18px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .info-value {
+            font-weight: 600;
+            color: #333;
+            text-align: right;
+        }
+        
+        .uptime-highlight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .uptime-highlight h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        
+        .uptime-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .refresh-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .refresh-button:hover {
+            background: #0056b3;
+        }
+        
+        .refresh-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+            margin: 20px 0;
+        }
+        
+        .timestamp {
+            color: #666;
+            font-size: 12px;
+            text-align: right;
+            margin-top: 15px;
+        }
+        
+        .back-button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        
+        .back-button:hover {
+            background: #5a6268;
+            text-decoration: none;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/devices_smart_refresh.html" class="back-button">← 返回设备列表</a>
+        
+        <div id="loading" class="loading">
+            正在加载设备详情...
+        </div>
+        
+        <div id="error-message" class="error" style="display: none;"></div>
+        
+        <div id="device-detail" style="display: none;">
+            <!-- 设备头部信息 -->
+            <div class="device-header">
+                <div class="device-title">
+                    <h1 id="device-name">设备详情</h1>
+                    <div class="device-status" id="device-status">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="status-text">检查中...</span>
+                    </div>
+                </div>
+                
+                <!-- 在线时长突出显示 -->
+                <div class="uptime-highlight" id="uptime-highlight">
+                    <h2>当前在线时长</h2>
+                    <div class="uptime-value" id="current-uptime">计算中...</div>
+                    <div>最后心跳: <span id="last-heartbeat">检查中...</span></div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="refresh-button" onclick="refreshDeviceDetail()" id="refresh-btn">
+                        刷新数据
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 详细信息网格 -->
+            <div class="device-info-grid">
+                <!-- 基本信息 -->
+                <div class="info-card">
+                    <h3>📋 基本信息</h3>
+                    <div class="info-item">
+                        <span class="info-label">设备ID</span>
+                        <span class="info-value" id="device-id">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">首次连接</span>
+                        <span class="info-value" id="first-seen">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">最后活动</span>
+                        <span class="info-value" id="last-seen">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">设备总存在时长</span>
+                        <span class="info-value" id="total-lifetime">-</span>
+                    </div>
+                </div>
+                
+                <!-- 连接状态 -->
+                <div class="info-card">
+                    <h3>🌐 连接状态</h3>
+                    <div class="info-item">
+                        <span class="info-label">当前状态</span>
+                        <span class="info-value" id="current-status">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">距离上次心跳</span>
+                        <span class="info-value" id="heartbeat-gap">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">本次会话时长</span>
+                        <span class="info-value" id="session-duration">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">IP地址</span>
+                        <span class="info-value" id="ip-address">-</span>
+                    </div>
+                </div>
+                
+                <!-- 系统信息 -->
+                <div class="info-card">
+                    <h3>💻 系统信息</h3>
+                    <div id="system-info-content">
+                        <div class="info-item">
+                            <span class="info-label">系统信息</span>
+                            <span class="info-value">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 加密信息 -->
+                <div class="info-card">
+                    <h3>🔐 安全信息</h3>
+                    <div class="info-item">
+                        <span class="info-label">加密状态</span>
+                        <span class="info-value" id="encryption-status">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">密钥交换</span>
+                        <span class="info-value" id="key-exchange">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">加密算法</span>
+                        <span class="info-value" id="encryption-cipher">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">密钥ID</span>
+                        <span class="info-value" id="key-id">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="timestamp" id="last-updated">
+                最后更新: -
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deviceData = null;
+        let refreshInterval = null;
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceId = urlParams.get('device_id');
+            
+            if (!deviceId) {
+                showError('未指定设备ID');
+                return;
+            }
+            
+            loadDeviceDetail(deviceId);
+            
+            // 每30秒自动刷新一次
+            refreshInterval = setInterval(() => {
+                loadDeviceDetail(deviceId, false);
+            }, 30000);
+        });
+        
+        /**
+         * 加载设备详情
+         */
+        async function loadDeviceDetail(deviceId, showLoading = true) {
+            if (showLoading) {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('device-detail').style.display = 'none';
+                document.getElementById('error-message').style.display = 'none';
+            }
+            
+            try {
+                const response = await fetch(`/api/device_detail.php?device_id=${encodeURIComponent(deviceId)}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    deviceData = data.device;
+                    updateDeviceDisplay();
+                    
+                    if (showLoading) {
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('device-detail').style.display = 'block';
+                    }
+                } else {
+                    throw new Error(data.message || '获取设备详情失败');
+                }
+                
+            } catch (error) {
+                console.error('加载设备详情失败:', error);
+                showError('加载设备详情失败: ' + error.message);
+            }
+        }
+        
+        /**
+         * 更新设备显示
+         */
+        function updateDeviceDisplay() {
+            if (!deviceData) return;
+            
+            const uptimeInfo = deviceData.uptime_info || {};
+            
+            // 更新设备名称
+            document.getElementById('device-name').textContent = `设备 ${deviceData.device_id}`;
+            
+            // 更新状态指示器
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            
+            if (uptimeInfo.is_online) {
+                statusIndicator.className = 'status-indicator status-online';
+                statusText.textContent = '在线';
+            } else {
+                statusIndicator.className = 'status-indicator status-offline';
+                statusText.textContent = '离线';
+            }
+            
+            // 更新在线时长突出显示
+            const uptimeHighlight = document.getElementById('uptime-highlight');
+            const currentUptime = document.getElementById('current-uptime');
+            const lastHeartbeat = document.getElementById('last-heartbeat');
+            
+            if (uptimeInfo.is_online) {
+                uptimeHighlight.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                currentUptime.textContent = uptimeInfo.current_session_duration_formatted || '计算中...';
+                lastHeartbeat.textContent = uptimeInfo.last_heartbeat_ago || '未知';
+            } else {
+                uptimeHighlight.style.background = 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)';
+                currentUptime.textContent = '设备离线';
+                lastHeartbeat.textContent = uptimeInfo.last_heartbeat_ago || '未知';
+            }
+            
+            // 更新基本信息
+            document.getElementById('device-id').textContent = deviceData.device_id || '-';
+            document.getElementById('first-seen').textContent = uptimeInfo.first_seen_formatted || deviceData.first_seen || '-';
+            document.getElementById('last-seen').textContent = uptimeInfo.last_seen_formatted || deviceData.last_seen || '-';
+            document.getElementById('total-lifetime').textContent = uptimeInfo.total_lifetime_formatted || '-';
+            
+            // 更新连接状态
+            document.getElementById('current-status').textContent = uptimeInfo.is_online ? '在线' : '离线';
+            document.getElementById('heartbeat-gap').textContent = uptimeInfo.last_heartbeat_ago || '-';
+            document.getElementById('session-duration').textContent = uptimeInfo.current_session_duration_formatted || '-';
+            document.getElementById('ip-address').textContent = deviceData.ip_address || '-';
+            
+            // 更新系统信息
+            updateSystemInfo();
+            
+            // 更新加密信息
+            document.getElementById('encryption-status').textContent = deviceData.encryption_enabled ? '已启用' : '未启用';
+            document.getElementById('key-exchange').textContent = deviceData.last_key_exchange || '-';
+            document.getElementById('encryption-cipher').textContent = deviceData.encryption_cipher || '-';
+            document.getElementById('key-id').textContent = deviceData.key_id || '-';
+            
+            // 更新时间戳
+            document.getElementById('last-updated').textContent = `最后更新: ${new Date().toLocaleString('zh-CN')}`;
+        }
+        
+        /**
+         * 更新系统信息
+         */
+        function updateSystemInfo() {
+            const systemInfoContent = document.getElementById('system-info-content');
+            
+            if (deviceData.system_info) {
+                try {
+                    const systemInfo = typeof deviceData.system_info === 'string' ? 
+                        JSON.parse(deviceData.system_info) : deviceData.system_info;
+                    
+                    let html = '';
+                    
+                    if (systemInfo.model) {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">设备型号</span>
+                                <span class="info-value">${systemInfo.model}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (systemInfo.version) {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">系统版本</span>
+                                <span class="info-value">${systemInfo.version}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (systemInfo.internal_ip) {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">内网IP</span>
+                                <span class="info-value">${systemInfo.internal_ip}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (systemInfo.uptime) {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">系统运行时间</span>
+                                <span class="info-value">${systemInfo.uptime}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (html) {
+                        systemInfoContent.innerHTML = html;
+                    } else {
+                        systemInfoContent.innerHTML = `
+                            <div class="info-item">
+                                <span class="info-label">系统信息</span>
+                                <span class="info-value">暂无详细信息</span>
+                            </div>
+                        `;
+                    }
+                    
+                } catch (e) {
+                    systemInfoContent.innerHTML = `
+                        <div class="info-item">
+                            <span class="info-label">系统信息</span>
+                            <span class="info-value">解析失败</span>
+                        </div>
+                    `;
+                }
+            } else {
+                systemInfoContent.innerHTML = `
+                    <div class="info-item">
+                        <span class="info-label">系统信息</span>
+                        <span class="info-value">暂无信息</span>
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 显示错误信息
+         */
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('device-detail').style.display = 'none';
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+        }
+        
+        /**
+         * 手动刷新设备详情
+         */
+        async function refreshDeviceDetail() {
+            const button = document.getElementById('refresh-btn');
+            button.disabled = true;
+            button.textContent = '刷新中...';
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceId = urlParams.get('device_id');
+            
+            try {
+                await loadDeviceDetail(deviceId, false);
+            } finally {
+                button.disabled = false;
+                button.textContent = '刷新数据';
+            }
+        }
+        
+        // 页面卸载时清理定时器
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

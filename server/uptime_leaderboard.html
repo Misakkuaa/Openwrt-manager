@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备在线时长统计</title>
+    <link rel="stylesheet" href="/css/device-list.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        
+        .stat-card.highlight {
+            border-left-color: #28a745;
+            background: linear-gradient(135deg, #fff 0%, #f8fff9 100%);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .leaderboard {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .leaderboard-header {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+        
+        .leaderboard-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .leaderboard-item:last-child {
+            border-bottom: none;
+        }
+        
+        .rank {
+            font-size: 18px;
+            font-weight: bold;
+            width: 40px;
+            text-align: center;
+            margin-right: 20px;
+        }
+        
+        .rank.top1 { color: #ffd700; }
+        .rank.top2 { color: #c0c0c0; }
+        .rank.top3 { color: #cd7f32; }
+        
+        .device-info {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .device-status {
+            margin-left: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .device-status.online {
+            background: #28a745;
+        }
+        
+        .device-status.offline {
+            background: #6c757d;
+        }
+        
+        .uptime-display {
+            text-align: right;
+        }
+        
+        .uptime-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .uptime-current {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 2px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .refresh-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        .refresh-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 设备在线时长统计</h1>
+            <p>查看设备的在线时长排行榜和统计信息</p>
+            <button class="refresh-button" onclick="loadData()">🔄 刷新数据</button>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number" id="total-devices">-</span>
+                <div class="stat-label">总设备数</div>
+            </div>
+            <div class="stat-card highlight">
+                <span class="stat-number" id="online-devices">-</span>
+                <div class="stat-label">在线设备</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="total-uptime">-</span>
+                <div class="stat-label">累计在线时长</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="average-uptime">-</span>
+                <div class="stat-label">平均在线时长</div>
+            </div>
+        </div>
+        
+        <!-- 排行榜 -->
+        <div class="leaderboard">
+            <div class="leaderboard-header">
+                <h2>🏆 在线时长排行榜</h2>
+                <p>按累计在线时长排序</p>
+            </div>
+            <div id="leaderboard-content" class="loading">
+                正在加载排行榜数据...
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        /**
+         * 加载数据
+         */
+        async function loadData() {
+            try {
+                // 并行加载统计信息和排行榜
+                const [statsResponse, leaderboardResponse] = await Promise.all([
+                    fetch('/api/uptime_stats.php?action=stats'),
+                    fetch('/api/uptime_stats.php?action=leaderboard&limit=20')
+                ]);
+                
+                const statsData = await statsResponse.json();
+                const leaderboardData = await leaderboardResponse.json();
+                
+                if (statsData.status === 'success') {
+                    updateStats(statsData.stats);
+                }
+                
+                if (leaderboardData.status === 'success') {
+                    updateLeaderboard(leaderboardData.data);
+                }
+                
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('leaderboard-content').innerHTML = 
+                    '<div class="loading" style="color: #dc3545;">加载失败，请稍后重试</div>';
+            }
+        }
+        
+        /**
+         * 更新统计信息
+         */
+        function updateStats(stats) {
+            document.getElementById('total-devices').textContent = stats.total_devices;
+            document.getElementById('online-devices').textContent = stats.online_devices;
+            document.getElementById('total-uptime').textContent = stats.total_uptime_formatted;
+            document.getElementById('average-uptime').textContent = stats.average_uptime_formatted;
+        }
+        
+        /**
+         * 更新排行榜
+         */
+        function updateLeaderboard(devices) {
+            const container = document.getElementById('leaderboard-content');
+            
+            if (!devices || devices.length === 0) {
+                container.innerHTML = '<div class="loading">暂无数据</div>';
+                return;
+            }
+            
+            const html = devices.map((device, index) => {
+                const rank = index + 1;
+                const rankClass = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '';
+                const isOnline = device.status === 'online' || device.online_session_start;
+                
+                let uptimeHtml = '';
+                if (device.uptime_info) {
+                    uptimeHtml = `
+                        <div class="uptime-display">
+                            <div class="uptime-total">${device.uptime_info.total_formatted}</div>
+                            ${isOnline && device.uptime_info.current_session_formatted ? 
+                                `<div class="uptime-current">本次: ${device.uptime_info.current_session_formatted}</div>` : 
+                                ''
+                            }
+                        </div>
+                    `;
+                } else {
+                    uptimeHtml = `
+                        <div class="uptime-display">
+                            <div class="uptime-total">${device.formatted_duration || '0秒'}</div>
+                        </div>
+                    `;
+                }
+                
+                return `
+                    <div class="leaderboard-item">
+                        <div class="rank ${rankClass}">
+                            ${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}
+                        </div>
+                        <div class="device-info">
+                            <div>
+                                <span class="device-name">${device.device_id}</span>
+                                <span class="device-status ${isOnline ? 'online' : 'offline'}">
+                                    ${isOnline ? '在线' : '离线'}
+                                </span>
+                            </div>
+                            ${uptimeHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = html;
+        }
+        
+        /**
+         * 格式化时长
+         */
+        function formatDuration(seconds) {
+            if (seconds <= 0) return '0秒';
+            
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            const parts = [];
+            if (days > 0) parts.push(days + '天');
+            if (hours > 0) parts.push(hours + '小时');
+            if (minutes > 0) parts.push(minutes + '分钟');
+            if (secs > 0 || parts.length === 0) parts.push(secs + '秒');
+            
+            return parts.join('');
+        }
+        
+        // 页面加载完成后自动加载数据
+        document.addEventListener('DOMContentLoaded', loadData);
+        
+        // 每30秒自动刷新一次数据
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

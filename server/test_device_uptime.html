@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备在线时长测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .test-panel {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .test-button:hover {
+            background: #0056b3;
+        }
+        
+        .test-result {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        
+        .device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .device-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .device-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .device-card.online {
+            border-left: 4px solid #28a745;
+        }
+        
+        .device-card.offline {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .device-status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .uptime-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .uptime-highlight {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <h1>设备在线时长功能测试</h1>
+    
+    <!-- API测试面板 -->
+    <div class="test-panel">
+        <h2>API测试</h2>
+        <button class="test-button" onclick="testDeviceDetailAPI()">测试设备详情API</button>
+        <button class="test-button" onclick="testAllDevices()">测试所有设备在线时长</button>
+        <div id="api-results"></div>
+    </div>
+    
+    <!-- 设备列表展示 -->
+    <div class="test-panel">
+        <h2>设备在线时长展示</h2>
+        <button class="test-button" onclick="loadDevicesWithUptime()">加载设备列表</button>
+        <div id="device-display" class="device-list"></div>
+    </div>
+    
+    <!-- 时长计算测试 -->
+    <div class="test-panel">
+        <h2>时长格式化测试</h2>
+        <button class="test-button" onclick="testDurationFormatting()">测试时长格式化</button>
+        <div id="duration-results"></div>
+    </div>
+
+    <script>
+        /**
+         * 测试设备详情API
+         */
+        async function testDeviceDetailAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="test-result">正在测试设备详情API...</div>';
+            
+            try {
+                // 首先获取设备列表，选择第一个设备进行测试
+                const devicesResponse = await fetch('/api/devices.php');
+                const devicesData = await devicesResponse.json();
+                
+                if (devicesData.status !== 'success' || devicesData.devices.length === 0) {
+                    throw new Error('没有找到可测试的设备');
+                }
+                
+                const testDeviceId = devicesData.devices[0].device_id;
+                
+                // 测试设备详情API
+                const detailResponse = await fetch(`/api/device_detail.php?device_id=${encodeURIComponent(testDeviceId)}`);
+                const detailData = await detailResponse.json();
+                
+                if (detailData.status === 'success') {
+                    const uptimeInfo = detailData.device.uptime_info || {};
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ 设备详情API测试成功
+                            
+                            测试设备: ${testDeviceId}
+                            当前状态: ${uptimeInfo.is_online ? '在线' : '离线'}
+                            设备总存在时长: ${uptimeInfo.total_lifetime_formatted || '未计算'}
+                            当前会话时长: ${uptimeInfo.current_session_duration_formatted || '未计算'}
+                            距离上次心跳: ${uptimeInfo.last_heartbeat_ago || '未知'}
+                            
+                            原始数据:
+                            ${JSON.stringify(uptimeInfo, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(detailData.message || '获取设备详情失败');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 设备详情API测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 测试所有设备的在线时长
+         */
+        async function testAllDevices() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML += '<div class="test-result">正在测试所有设备...</div>';
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status !== 'success') {
+                    throw new Error('获取设备列表失败');
+                }
+                
+                let testResults = '所有设备在线时长信息:\\n\\n';
+                
+                for (const device of data.devices.slice(0, 5)) { // 只测试前5个设备
+                    try {
+                        const detailResponse = await fetch(`/api/device_detail.php?device_id=${encodeURIComponent(device.device_id)}`);
+                        const detailData = await detailResponse.json();
+                        
+                        if (detailData.status === 'success') {
+                            const uptimeInfo = detailData.device.uptime_info || {};
+                            testResults += `设备 ${device.device_id}:\\n`;
+                            testResults += `  状态: ${uptimeInfo.is_online ? '在线' : '离线'}\\n`;
+                            testResults += `  总时长: ${uptimeInfo.total_lifetime_formatted || '未知'}\\n`;
+                            testResults += `  当前会话: ${uptimeInfo.current_session_duration_formatted || '未知'}\\n`;
+                            testResults += `  上次心跳: ${uptimeInfo.last_heartbeat_ago || '未知'}\\n\\n`;
+                        }
+                    } catch (e) {
+                        testResults += `设备 ${device.device_id}: 获取详情失败\\n\\n`;
+                    }
+                }
+                
+                resultsDiv.innerHTML += `
+                    <div class="test-result success">
+                        ✅ 批量测试完成
+                        ${testResults}
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 批量测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 加载设备列表并显示在线时长
+         */
+        async function loadDevicesWithUptime() {
+            const displayDiv = document.getElementById('device-display');
+            displayDiv.innerHTML = '<div style="text-align: center; padding: 20px;">正在加载设备...</div>';
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status !== 'success') {
+                    throw new Error('获取设备列表失败');
+                }
+                
+                let devicesHtml = '';
+                
+                for (const device of data.devices) {
+                    try {
+                        const detailResponse = await fetch(`/api/device_detail.php?device_id=${encodeURIComponent(device.device_id)}`);
+                        const detailData = await detailResponse.json();
+                        
+                        let uptimeInfo = {};
+                        if (detailData.status === 'success') {
+                            uptimeInfo = detailData.device.uptime_info || {};
+                        }
+                        
+                        const isOnline = uptimeInfo.is_online || false;
+                        const statusClass = isOnline ? 'online' : 'offline';
+                        const statusText = isOnline ? '在线' : '离线';
+                        const statusIcon = isOnline ? '🟢' : '🔴';
+                        
+                        devicesHtml += `
+                            <div class="device-card ${statusClass}" onclick="openDeviceDetail('${device.device_id}')">
+                                <div class="device-status">${statusIcon} ${device.device_id} - ${statusText}</div>
+                                <div>
+                                    <small>首次连接: ${new Date(device.first_seen).toLocaleString('zh-CN')}</small><br>
+                                    <small>最后活动: ${new Date(device.last_seen).toLocaleString('zh-CN')}</small>
+                                </div>
+                                <div class="uptime-info">
+                                    <div class="uptime-highlight">
+                                        ${isOnline ? '在线时长' : '离线时长'}: ${uptimeInfo.current_session_duration_formatted || '计算中...'}
+                                    </div>
+                                    <div>设备总存在时长: ${uptimeInfo.total_lifetime_formatted || '计算中...'}</div>
+                                    <div>距离上次心跳: ${uptimeInfo.last_heartbeat_ago || '未知'}</div>
+                                </div>
+                            </div>
+                        `;
+                        
+                    } catch (e) {
+                        devicesHtml += `
+                            <div class="device-card offline">
+                                <div class="device-status">🔴 ${device.device_id} - 获取详情失败</div>
+                                <div>错误: ${e.message}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                displayDiv.innerHTML = devicesHtml;
+                
+            } catch (error) {
+                displayDiv.innerHTML = `<div class="test-result error">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        /**
+         * 测试时长格式化
+         */
+        function testDurationFormatting() {
+            const resultsDiv = document.getElementById('duration-results');
+            
+            // 测试不同的时长值
+            const testCases = [
+                30,          // 30秒
+                90,          // 1分30秒
+                3600,        // 1小时
+                3661,        // 1小时1分1秒
+                86400,       // 1天
+                90061,       // 1天1小时1分1秒
+                365 * 86400, // 1年
+                400 * 86400 + 3600 + 60 + 1 // 1年多
+            ];
+            
+            let results = '时长格式化测试结果:\\n\\n';
+            
+            testCases.forEach(seconds => {
+                const formatted = formatDuration(seconds);
+                results += `${seconds}秒 -> ${formatted}\\n`;
+            });
+            
+            resultsDiv.innerHTML = `
+                <div class="test-result success">
+                    ✅ 时长格式化测试完成
+                    ${results}
+                </div>
+            `;
+        }
+        
+        /**
+         * 格式化时长显示（复制自DeviceManager.php的逻辑）
+         */
+        function formatDuration(seconds) {
+            if (seconds < 0) {
+                return '0秒';
+            }
+            
+            const units = {
+                '年': 365 * 24 * 3600,
+                '天': 24 * 3600,
+                '小时': 3600,
+                '分钟': 60,
+                '秒': 1
+            };
+            
+            const result = [];
+            
+            for (const [name, divisor] of Object.entries(units)) {
+                const quot = Math.floor(seconds / divisor);
+                if (quot > 0) {
+                    result.push(quot + name);
+                    seconds = seconds % divisor;
+                }
+            }
+            
+            if (result.length === 0) {
+                return '0秒';
+            }
+            
+            // 只显示最多两个单位
+            return result.slice(0, 2).join(' ');
+        }
+        
+        /**
+         * 打开设备详情页面
+         */
+        function openDeviceDetail(deviceId) {
+            window.open(`/device_detail.html?device_id=${encodeURIComponent(deviceId)}`, '_blank');
+        }
+        
+        // 页面加载完成后自动运行一些测试
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('设备在线时长测试页面已加载');
+        });
+    </script>
+</body>
+</html>

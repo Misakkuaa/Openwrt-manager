@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>时区测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .test-panel {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .test-button:hover {
+            background: #0056b3;
+        }
+        
+        .test-result {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        
+        .time-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>时区测试页面</h1>
+    
+    <!-- 当前时间显示 -->
+    <div class="test-panel">
+        <h2>当前时间</h2>
+        <div class="time-display" id="current-time">
+            正在获取当前时间...
+        </div>
+        <button class="test-button" onclick="updateCurrentTime()">刷新时间</button>
+    </div>
+    
+    <!-- 时区测试 -->
+    <div class="test-panel">
+        <h2>时区测试</h2>
+        <button class="test-button" onclick="testTimezone()">测试PHP时区设置</button>
+        <button class="test-button" onclick="testDatabaseTimezone()">测试数据库时区</button>
+        <button class="test-button" onclick="testDeviceTimezone()">测试设备API时区</button>
+        <div id="timezone-results"></div>
+    </div>
+    
+    <!-- 设备时间对比 -->
+    <div class="test-panel">
+        <h2>设备时间对比</h2>
+        <button class="test-button" onclick="compareDeviceTimes()">对比设备时间</button>
+        <div id="device-time-results"></div>
+    </div>
+
+    <script>
+        /**
+         * 更新当前时间显示
+         */
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-CN', {
+                timeZone: 'Asia/Shanghai',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZoneName: 'short'
+            });
+            
+            document.getElementById('current-time').textContent = `北京时间: ${timeString}`;
+        }
+        
+        // 自动更新当前时间
+        setInterval(updateCurrentTime, 1000);
+        updateCurrentTime();
+        
+        /**
+         * 测试PHP时区设置
+         */
+        async function testTimezone() {
+            const resultsDiv = document.getElementById('timezone-results');
+            resultsDiv.innerHTML = '<div class="test-result">正在测试PHP时区...</div>';
+            
+            try {
+                const response = await fetch('/api/test_timezone.php');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ PHP时区测试成功
+                            
+                            PHP时区: ${data.php_timezone}
+                            PHP当前时间: ${data.php_time}
+                            系统时间戳: ${data.timestamp}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.message || 'PHP时区测试失败');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ PHP时区测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 测试数据库时区
+         */
+        async function testDatabaseTimezone() {
+            const resultsDiv = document.getElementById('timezone-results');
+            resultsDiv.innerHTML += '<div class="test-result">正在测试数据库时区...</div>';
+            
+            try {
+                const response = await fetch('/api/test_db_timezone.php');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ 数据库时区测试成功
+                            
+                            MySQL时区: ${data.mysql_timezone}
+                            MySQL当前时间: ${data.mysql_time}
+                            系统变量时区: ${data.system_timezone}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.message || '数据库时区测试失败');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 数据库时区测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 测试设备API时区
+         */
+        async function testDeviceTimezone() {
+            const resultsDiv = document.getElementById('timezone-results');
+            resultsDiv.innerHTML += '<div class="test-result">正在测试设备API时区...</div>';
+            
+            try {
+                // 获取设备列表
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.devices.length > 0) {
+                    const device = data.devices[0];
+                    const now = new Date();
+                    const deviceFirstSeen = new Date(device.first_seen);
+                    const deviceLastSeen = new Date(device.last_seen);
+                    
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ 设备API时区测试成功
+                            
+                            当前浏览器时间: ${now.toLocaleString('zh-CN')}
+                            设备首次连接: ${deviceFirstSeen.toLocaleString('zh-CN')}
+                            设备最后活动: ${deviceLastSeen.toLocaleString('zh-CN')}
+                            
+                            时间差检查:
+                            - 首次连接是否合理: ${Math.abs(now - deviceFirstSeen) < 365 * 24 * 3600 * 1000 ? '✅' : '❌'}
+                            - 最后活动是否合理: ${Math.abs(now - deviceLastSeen) < 24 * 3600 * 1000 ? '✅' : '❌'}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ 没有找到设备数据进行测试
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 设备API时区测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 对比设备时间
+         */
+        async function compareDeviceTimes() {
+            const resultsDiv = document.getElementById('device-time-results');
+            resultsDiv.innerHTML = '<div class="test-result">正在对比设备时间...</div>';
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    let html = '<div class="test-result success">设备时间对比结果:\\n\\n';
+                    
+                    const now = new Date();
+                    html += `当前北京时间: ${now.toLocaleString('zh-CN')}\\n\\n`;
+                    
+                    data.devices.slice(0, 5).forEach((device, index) => {
+                        const firstSeen = new Date(device.first_seen);
+                        const lastSeen = new Date(device.last_seen);
+                        const timeDiff = Math.floor((now - lastSeen) / 1000);
+                        
+                        html += `设备 ${index + 1} (${device.device_id}):`;
+                        html += `  首次连接: ${firstSeen.toLocaleString('zh-CN')}`;
+                        html += `  最近活动: ${lastSeen.toLocaleString('zh-CN')}`;
+                        html += `  距离现在: ${formatDuration(timeDiff)}`;
+                        html += `  状态: ${timeDiff <= 120 ? '在线' : '离线'}\\n`;
+                    });
+                    
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                    
+                } else {
+                    throw new Error(data.message || '获取设备数据失败');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 设备时间对比失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * 格式化时长
+         */
+        function formatDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds}秒`;
+            } else if (seconds < 3600) {
+                return `${Math.floor(seconds / 60)}分钟`;
+            } else if (seconds < 86400) {
+                return `${Math.floor(seconds / 3600)}小时`;
+            } else {
+                return `${Math.floor(seconds / 86400)}天`;
+            }
+        }
+        
+        // 页面加载完成后自动测试
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('时区测试页面加载完成');
+        });
+    </script>
+</body>
+</html>

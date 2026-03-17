@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenWrt 设备管理 - 智能刷新</title>
+    <link rel="stylesheet" href="/css/device-list.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .controls-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .refresh-status {
+            font-size: 12px;
+            color: #666;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .refresh-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .device-list-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .list-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .list-title {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .sort-info {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OpenWrt 设备管理系统</h1>
+            <p>智能刷新 - 只在有新设备连接时更新界面</p>
+        </div>
+        
+        <!-- 设备统计 -->
+        <div class="device-stats">
+            <div class="stat-item online">
+                <span class="stat-number" id="online-count">-</span>
+                <div class="stat-label">在线设备</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="total-count">-</span>
+                <div class="stat-label">总设备数</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="new-devices-today">-</span>
+                <div class="stat-label">今日新增</div>
+            </div>
+        </div>
+        
+        <!-- 控制面板 -->
+        <div class="controls">
+            <div class="controls-left">
+                <div class="refresh-status" id="refresh-status">
+                    🔄 智能刷新已启用
+                </div>
+                <div class="refresh-status" id="last-check">
+                    上次检查: -
+                </div>
+            </div>
+            <div class="controls-right">
+                <button onclick="toggleAutoRefresh()" id="refresh-toggle">
+                    停止自动刷新
+                </button>
+                <button onclick="manualRefresh()" id="manual-refresh">
+                    手动刷新
+                </button>
+            </div>
+        </div>
+        
+        <!-- 设备列表 -->
+        <div class="device-list-container">
+            <div class="list-header">
+                <div class="list-title">设备列表</div>
+                <div class="sort-info">
+                    📶 在线设备优先 → 🕐 首次连接时间倒序
+                </div>
+            </div>
+            <div id="device-list" class="loading">
+                正在加载设备列表...
+            </div>
+        </div>
+    </div>
+    
+    <!-- 刷新通知 -->
+    <div id="refresh-notification" class="refresh-notification"></div>
+    
+    <script src="/js/device-refresh-manager.js"></script>
+    <script>
+        // 全局变量
+        let refreshManager = null;
+        let isAutoRefreshEnabled = true;
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDeviceManager();
+            updateLastCheckTime();
+        });
+        
+        /**
+         * 初始化设备管理器
+         */
+        function initializeDeviceManager() {
+            // 这里的初始化代码已经在device-refresh-manager.js中处理
+            // 我们只需要设置一些额外的回调
+            
+            // 更新最后检查时间
+            setInterval(updateLastCheckTime, 1000);
+        }
+        
+        /**
+         * 切换自动刷新
+         */
+        function toggleAutoRefresh() {
+            isAutoRefreshEnabled = !isAutoRefreshEnabled;
+            const button = document.getElementById('refresh-toggle');
+            const status = document.getElementById('refresh-status');
+            
+            if (isAutoRefreshEnabled) {
+                // 重新启动监控
+                if (window.refreshManager) {
+                    window.refreshManager.start();
+                }
+                button.textContent = '停止自动刷新';
+                status.textContent = '🔄 智能刷新已启用';
+                status.classList.add('active');
+            } else {
+                // 停止监控
+                if (window.refreshManager) {
+                    window.refreshManager.stop();
+                }
+                button.textContent = '启用自动刷新';
+                status.textContent = '⏸️ 智能刷新已停用';
+                status.classList.remove('active');
+            }
+        }
+        
+        /**
+         * 手动刷新
+         */
+        async function manualRefresh() {
+            const button = document.getElementById('manual-refresh');
+            button.disabled = true;
+            button.textContent = '刷新中...';
+            
+            try {
+                // 强制检查设备变化
+                if (window.refreshManager) {
+                    await window.refreshManager.forceCheck();
+                }
+                
+                showNotification('手动刷新完成', 'success');
+            } catch (error) {
+                console.error('手动刷新失败:', error);
+                showNotification('刷新失败', 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '手动刷新';
+            }
+        }
+        
+        /**
+         * 更新最后检查时间
+         */
+        function updateLastCheckTime() {
+            const element = document.getElementById('last-check');
+            if (element) {
+                const now = new Date();
+                element.textContent = `上次检查: ${now.toLocaleTimeString('zh-CN')}`;
+            }
+        }
+        
+        /**
+         * 显示通知
+         */
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('refresh-notification');
+            if (!notification) return;
+            
+            notification.textContent = message;
+            notification.className = `refresh-notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 将一些函数暴露给全局作用域，以便在device-refresh-manager.js中使用
+        window.showRefreshNotification = function(changes) {
+            let message = '';
+            let type = 'info';
+            
+            if (changes.includes('new_device')) {
+                message = '🎉 发现新设备连接';
+                type = 'success';
+            } else if (changes.includes('online_count_changed')) {
+                message = '📶 设备在线状态发生变化';
+                type = 'info';
+            } else if (changes.includes('total_count_changed')) {
+                message = '📊 设备总数发生变化';
+                type = 'info';
+            }
+            
+            if (message) {
+                showNotification(message, type);
+            }
+        };
+        
+        window.updateDeviceStats = function(status) {
+            // 更新统计数字
+            const onlineCount = document.getElementById('online-count');
+            const totalCount = document.getElementById('total-count');
+            
+            if (onlineCount) {
+                onlineCount.textContent = status.online_count || 0;
+            }
+            if (totalCount) {
+                totalCount.textContent = status.total_count || 0;
+            }
+            
+            // 更新今日新增（这里需要额外的API支持）
+            // updateTodayNewDevices();
+        };
+    </script>
+</body>
+</html>

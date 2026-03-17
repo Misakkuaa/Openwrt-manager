@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备管理系统测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-panel {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-result {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .loading {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <h1>OpenWrt 设备管理系统 - 功能测试</h1>
+    
+    <!-- API测试面板 -->
+    <div class="test-panel">
+        <h2>API端点测试</h2>
+        <button class="test-button" onclick="testDevicesAPI()">测试设备列表API</button>
+        <button class="test-button" onclick="testChangesAPI()">测试变化检查API</button>
+        <div id="api-results"></div>
+    </div>
+    
+    <!-- 设备管理器测试面板 -->
+    <div class="test-panel">
+        <h2>刷新管理器测试</h2>
+        <button class="test-button" onclick="testRefreshManager()">测试刷新管理器</button>
+        <button class="test-button" onclick="toggleRefreshManager()">启动/停止监控</button>
+        <button class="test-button" onclick="forceRefresh()">强制刷新</button>
+        <div id="manager-results"></div>
+    </div>
+    
+    <!-- 设备列表显示面板 -->
+    <div class="test-panel">
+        <h2>设备列表 (实时)</h2>
+        <div>
+            统计: <span id="stats-display">加载中...</span>
+        </div>
+        <div id="device-list-test" style="margin-top: 15px;"></div>
+    </div>
+    
+    <!-- 日志面板 -->
+    <div class="test-panel">
+        <h2>系统日志</h2>
+        <button class="test-button" onclick="clearLogs()">清空日志</button>
+        <div id="system-logs" class="test-result"></div>
+    </div>
+
+    <script>
+        let testRefreshManager = null;
+        let isManagerRunning = false;
+        
+        /**
+         * 添加日志
+         */
+        function addLog(message, type = 'info') {
+            const logsDiv = document.getElementById('system-logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            logsDiv.textContent += logEntry;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        /**
+         * 清空日志
+         */
+        function clearLogs() {
+            document.getElementById('system-logs').textContent = '';
+        }
+        
+        /**
+         * 测试设备API
+         */
+        async function testDevicesAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="test-result loading">正在测试设备API...</div>';
+            
+            try {
+                const response = await fetch('/api/devices.php');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ 设备API测试成功
+                            设备总数: ${data.stats ? data.stats.total_count : data.devices.length}
+                            在线设备: ${data.stats ? data.stats.online_count : '未知'}
+                            
+                            第一个设备示例:
+                            ${JSON.stringify(data.devices[0] || {}, null, 2)}
+                        </div>
+                    `;
+                    addLog(`设备API测试成功，获取到${data.devices.length}个设备`, 'success');
+                } else {
+                    throw new Error(data.message || '未知错误');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 设备API测试失败: ${error.message}
+                    </div>
+                `;
+                addLog(`设备API测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        /**
+         * 测试变化检查API
+         */
+        async function testChangesAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML += '<div class="test-result loading">正在测试变化检查API...</div>';
+            
+            try {
+                const lastCheck = Math.floor(Date.now() / 1000) - 60; // 1分钟前
+                const response = await fetch(`/api/check_device_changes.php?last_check=${lastCheck}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ 变化检查API测试成功
+                            有变化: ${data.has_changes ? '是' : '否'}
+                            变化类型: ${data.changes ? data.changes.join(', ') : '无'}
+                            当前状态: 在线${data.current_status.online_count}台，总计${data.current_status.total_count}台
+                        </div>
+                    `;
+                    addLog(`变化检查API测试成功，变化状态: ${data.has_changes}`, 'success');
+                } else {
+                    throw new Error(data.message || '未知错误');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 变化检查API测试失败: ${error.message}
+                    </div>
+                `;
+                addLog(`变化检查API测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        /**
+         * 测试刷新管理器
+         */
+        async function testRefreshManager() {
+            const resultsDiv = document.getElementById('manager-results');
+            
+            try {
+                // 动态加载刷新管理器脚本
+                if (typeof DeviceRefreshManager === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = '/js/device-refresh-manager.js';
+                    document.head.appendChild(script);
+                    
+                    // 等待脚本加载
+                    await new Promise((resolve, reject) => {
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        setTimeout(reject, 5000); // 5秒超时
+                    });
+                }
+                
+                // 创建测试管理器
+                testRefreshManager = new DeviceRefreshManager({
+                    checkInterval: 5000, // 5秒检查一次
+                    onRefresh: (devices, changes) => {
+                        addLog(`设备列表刷新，变化: ${changes.join(', ')}`, 'info');
+                        updateDeviceDisplay(devices);
+                    },
+                    onStatusChange: (status) => {
+                        addLog(`状态变化: 在线${status.online_count}台，总计${status.total_count}台`, 'info');
+                        updateStatsDisplay(status);
+                    }
+                });
+                
+                resultsDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ 刷新管理器创建成功
+                        检查间隔: 5秒
+                        状态: 已就绪
+                    </div>
+                `;
+                addLog('刷新管理器创建成功', 'success');
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 刷新管理器测试失败: ${error.message}
+                    </div>
+                `;
+                addLog(`刷新管理器测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        /**
+         * 启动/停止刷新管理器
+         */
+        function toggleRefreshManager() {
+            if (!testRefreshManager) {
+                addLog('请先创建刷新管理器', 'error');
+                return;
+            }
+            
+            if (isManagerRunning) {
+                testRefreshManager.stop();
+                isManagerRunning = false;
+                addLog('刷新管理器已停止', 'info');
+            } else {
+                testRefreshManager.start();
+                isManagerRunning = true;
+                addLog('刷新管理器已启动', 'info');
+            }
+        }
+        
+        /**
+         * 强制刷新
+         */
+        async function forceRefresh() {
+            if (!testRefreshManager) {
+                addLog('请先创建刷新管理器', 'error');
+                return;
+            }
+            
+            try {
+                await testRefreshManager.forceCheck();
+                addLog('强制刷新完成', 'success');
+            } catch (error) {
+                addLog(`强制刷新失败: ${error.message}`, 'error');
+            }
+        }
+        
+        /**
+         * 更新设备显示
+         */
+        function updateDeviceDisplay(devices) {
+            const listDiv = document.getElementById('device-list-test');
+            if (!devices || devices.length === 0) {
+                listDiv.innerHTML = '<p>暂无设备</p>';
+                return;
+            }
+            
+            // 按在线状态和首次连接时间排序
+            devices.sort((a, b) => {
+                const aOnline = isDeviceOnline(a);
+                const bOnline = isDeviceOnline(b);
+                
+                if (aOnline !== bOnline) {
+                    return bOnline - aOnline;
+                }
+                
+                return new Date(b.first_seen).getTime() - new Date(a.first_seen).getTime();
+            });
+            
+            const html = devices.slice(0, 5).map(device => {
+                const online = isDeviceOnline(device);
+                const statusIcon = online ? '🟢' : '🔴';
+                const statusText = online ? '在线' : '离线';
+                
+                return `
+                    <div style="padding: 10px; margin: 5px 0; background: ${online ? '#d4edda' : '#f8d7da'}; border-radius: 4px;">
+                        ${statusIcon} <strong>${device.device_id}</strong> - ${statusText}
+                        <br><small>首次连接: ${new Date(device.first_seen).toLocaleString()}</small>
+                    </div>
+                `;
+            }).join('');
+            
+            listDiv.innerHTML = html + (devices.length > 5 ? '<p><small>只显示前5个设备...</small></p>' : '');
+        }
+        
+        /**
+         * 判断设备是否在线
+         */
+        function isDeviceOnline(device) {
+            if (device.is_online !== undefined) {
+                return device.is_online === 1;
+            }
+            
+            const lastSeen = new Date(device.last_seen).getTime();
+            const now = Date.now();
+            const timeDiff = (now - lastSeen) / 1000;
+            
+            return timeDiff <= 120;
+        }
+        
+        /**
+         * 更新统计显示
+         */
+        function updateStatsDisplay(status) {
+            const statsDiv = document.getElementById('stats-display');
+            statsDiv.textContent = `在线: ${status.online_count}台, 总计: ${status.total_count}台, 更新时间: ${new Date(status.timestamp * 1000).toLocaleTimeString()}`;
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('测试页面加载完成', 'info');
+            
+            // 自动测试设备API
+            setTimeout(() => {
+                testDevicesAPI();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
